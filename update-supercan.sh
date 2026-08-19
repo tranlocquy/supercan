@@ -50,6 +50,80 @@ check_git_operation() {
 	done
 }
 
+check_ignored_collisions() {
+	local checkout="$1"
+	local target="$2"
+	local collision=0
+	local object_type
+	local path
+	local probe
+
+	while IFS= read -r -d '' path; do
+		probe="$path"
+		if object_type="$(git -C "$checkout" cat-file -t \
+			"$target:$probe" 2>/dev/null)"; then
+			printf 'Ignored path would be overwritten by %s:\n  %q\n' \
+				"$target" "$path" >&2
+			collision=1
+			continue
+		fi
+
+		while [[ "$probe" == */* ]]; do
+			probe="${probe%/*}"
+			if object_type="$(git -C "$checkout" cat-file -t \
+				"$target:$probe" 2>/dev/null)"; then
+				if [[ "$object_type" != tree ]]; then
+					printf 'Ignored path %q conflicts with tracked parent %q in %s\n' \
+						"$path" "$probe" "$target" >&2
+					collision=1
+				fi
+				break
+			fi
+		done
+	done < <(git -C "$checkout" ls-files --others --ignored \
+		--exclude-standard -z)
+
+	(( ! collision )) || die "ignored files would be overwritten in $checkout"
+}
+
+ensure_commit() {
+	local checkout="$1"
+	local target="$2"
+
+	if git -C "$checkout" cat-file -e "$target^{commit}" 2>/dev/null; then
+		return
+	fi
+
+	git -C "$checkout" remote get-url origin >/dev/null 2>&1 \
+		|| die "submodule has no origin remote: $checkout"
+	git -C "$checkout" fetch --no-tags origin
+	if ! git -C "$checkout" cat-file -e "$target^{commit}" 2>/dev/null; then
+		git -C "$checkout" fetch --no-tags origin "$target"
+	fi
+	git -C "$checkout" cat-file -e "$target^{commit}" 2>/dev/null \
+		|| die "cannot fetch pinned commit $target in $checkout"
+}
+
+require_empty_uninitialized_path() {
+	local path="$1"
+	local contents=""
+
+	if [[ -d "$path" ]]; then
+		contents="$(find "$path" -mindepth 1 -maxdepth 1 -print -quit)"
+	fi
+	[[ -z "$contents" ]] \
+		|| die "uninitialized submodule path contains files: $path"
+}
+
+checkout_pinned() {
+	local checkout="$1"
+	local target="$2"
+
+	ensure_commit "$checkout" "$target"
+	check_ignored_collisions "$checkout" "$target"
+	git -C "$checkout" switch --detach --no-overwrite-ignore "$target"
+}
+
 repo_dir=""
 branch="debug"
 remote="origin"
@@ -155,24 +229,46 @@ if git -C "$repo_dir" show-ref --verify --quiet "refs/heads/$branch"; then
 	fi
 fi
 
+update_target="refs/remotes/$remote/$branch"
+if git -C "$repo_dir" show-ref --verify --quiet "refs/heads/$branch" \
+	&& git -C "$repo_dir" merge-base --is-ancestor \
+		"refs/remotes/$remote/$branch" "refs/heads/$branch"; then
+	update_target="refs/heads/$branch"
+fi
+check_ignored_collisions "$repo_dir" "$update_target"
+
 if git -C "$repo_dir" show-ref --verify --quiet "refs/heads/$branch"; then
 	if [[ "$current_branch" != "$branch" ]]; then
-		git -C "$repo_dir" switch "$branch"
+		git -C "$repo_dir" switch --no-overwrite-ignore "$branch"
 	fi
 else
-	git -C "$repo_dir" switch --create "$branch" --track "$remote/$branch"
+	git -C "$repo_dir" switch --no-overwrite-ignore \
+		--create "$branch" --track "$remote/$branch"
 fi
 
 git -C "$repo_dir" merge --ff-only "$remote/$branch"
 
+boards_target="$(git -C "$repo_dir" rev-parse HEAD:Boards)"
 git -C "$repo_dir" submodule sync -- Boards
-git -C "$repo_dir" submodule update --init --checkout Boards
+if [[ -e "$boards_dir/.git" ]]; then
+	checkout_pinned "$boards_dir" "$boards_target"
+else
+	require_empty_uninitialized_path "$boards_dir"
+	git -C "$repo_dir" submodule update --init --checkout Boards
+fi
 
 [[ -e "$boards_dir/.git" ]] || die "Boards submodule was not initialized"
 
-git -C "$boards_dir" submodule sync -- "${h7_submodules[@]}"
-git -C "$boards_dir" submodule update --init --checkout \
-	"${h7_submodules[@]}"
+for submodule in "${h7_submodules[@]}"; do
+	git -C "$boards_dir" submodule sync -- "$submodule"
+	expected_commit="$(git -C "$boards_dir" rev-parse "HEAD:$submodule")"
+	if [[ -e "$boards_dir/$submodule/.git" ]]; then
+		checkout_pinned "$boards_dir/$submodule" "$expected_commit"
+	else
+		require_empty_uninitialized_path "$boards_dir/$submodule"
+		git -C "$boards_dir" submodule update --init --checkout "$submodule"
+	fi
+done
 
 expected_commit="$(git -C "$repo_dir" rev-parse HEAD:Boards)"
 actual_commit="$(git -C "$boards_dir" rev-parse HEAD)"

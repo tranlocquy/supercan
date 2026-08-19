@@ -65,11 +65,13 @@ current branch unless ``--switch`` is explicitly supplied. Run
 ``./update-supercan.sh --help`` for the complete interface.
 
 The script refuses local tracked or untracked changes and in-progress Git
-operations. It checks out ``Boards`` and its build dependencies at the exact
-commits pinned by their parent repositories, so these submodule worktrees are
-normally left detached. It never resets, stashes, builds, flashes, or
-force-pushes. A network interruption can leave dependencies only partially
-initialized; after correcting the connection, rerun the same command.
+operations. Ignored build outputs may remain, but the updater aborts if a
+target revision would overwrite one of them. It checks out ``Boards`` and its
+build dependencies at the exact commits pinned by their parent repositories,
+so these submodule worktrees are normally left detached. It never resets,
+stashes, builds, flashes, or force-pushes. A network interruption can leave
+dependencies only partially initialized; after correcting the connection,
+rerun the same command.
 
 Signal map
 ==========
