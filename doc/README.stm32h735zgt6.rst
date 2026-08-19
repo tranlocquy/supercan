@@ -104,10 +104,22 @@ connect an MCU FDCAN RX or TX pin directly to CANH or CANL.
      - PD8 / PD9
      - 76 / 77
      - Not configured; USART3 is disabled
-   * - Unused LED pins
+   * - Blue debug LED
+     - PE2
+     - 1
+     - GPIO open-drain output; active low
+   * - Green CAN0 LED
+     - PE3
+     - 2
+     - GPIO open-drain output; active low
+   * - Red CAN0 LED
+     - PE4
+     - 3
+     - GPIO open-drain output; active low
+   * - Unused legacy LED pins
      - PB0 / PB14 / PE1
      - 49 / 74 / 139
-     - Not configured; no status LED outputs
+     - Not configured
    * - Unused button pin
      - PC13
      - 9
@@ -126,9 +138,18 @@ PG10/PG9 are configured only when the count is ``3``. If an unused
 transceiver is populated, hold it in standby or ensure its TXD input remains
 recessive. The firmware does not currently define transceiver-enable GPIOs.
 
-The H735 target deliberately disables the legacy debug UART, status LEDs, and
-user button. It does not enable USART3 or configure PD8, PD9, PB0, PB14, PE1,
-or PC13, leaving those GPIOs in their reset state for the application board.
+The H735 target drives PE2/PE3/PE4 as active-low, open-drain LEDs. Wire each
+LED from the positive supply through its current-limiting resistor to the MCU
+pin: driving the pin low turns the LED on, while releasing it high turns the
+LED off. The blue LED provides the debug/startup indication; the green and red
+LEDs report CAN0 status. FDCAN2 and FDCAN3 do not have dedicated status LEDs.
+PE2/PE3/PE4 can alternatively carry TRACECLK/TRACED0/TRACED1, so parallel
+trace is unavailable while the LEDs are enabled; normal SWD on PA13/PA14 is
+unaffected.
+
+The target still disables the legacy debug UART and user button. It does not
+enable USART3 or configure PD8, PD9, PB0, PB14, PE1, or PC13, leaving those
+GPIOs in their reset state for the application board.
 
 Clock and memory configuration
 ==============================
