@@ -100,18 +100,18 @@ connect an MCU FDCAN RX or TX pin directly to CANH or CANL.
      - PA10
      - 99
      - AF10; optional on a fixed USB device
-   * - Debug UART TX / RX
+   * - Unused UART pins
      - PD8 / PD9
      - 76 / 77
-     - USART3 AF7
-   * - Status LEDs
+     - Not configured; USART3 is disabled
+   * - Unused LED pins
      - PB0 / PB14 / PE1
      - 49 / 74 / 139
-     - Active-high push-pull outputs
-   * - User button
+     - Not configured; no status LED outputs
+   * - Unused button pin
      - PC13
      - 9
-     - Input, no internal pull, active high
+     - Not configured or read
    * - 25 MHz HSE
      - PH0 / PH1
      - 25 / 26
@@ -125,6 +125,10 @@ PB5/PB6 are configured only when the channel count is ``2`` or ``3``.
 PG10/PG9 are configured only when the count is ``3``. If an unused
 transceiver is populated, hold it in standby or ensure its TXD input remains
 recessive. The firmware does not currently define transceiver-enable GPIOs.
+
+The H735 target deliberately disables the legacy debug UART, status LEDs, and
+user button. It does not enable USART3 or configure PD8, PD9, PB0, PB14, PE1,
+or PC13, leaving those GPIOs in their reset state for the application board.
 
 Clock and memory configuration
 ==============================
