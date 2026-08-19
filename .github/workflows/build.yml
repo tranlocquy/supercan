@@ -101,12 +101,15 @@ jobs:
           sudo apt-get update && sudo apt-get install -y dfu-util gcc-arm-none-eabi pixz python3
           git submodule update --init --depth 1 --recursive
 
-      - name: Build optional STM32H725 channel-count variants
+      - name: Build optional STM32H725 configurations
         run: |
           make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
             -j"$(nproc)" BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=1
           make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
             -j"$(nproc)" BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=3
+          make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+            -j"$(nproc)" BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=2 \
+            STM32H725_USE_HSE=1
 
       - name: Build
         id: build

@@ -29,6 +29,14 @@ when omitted. To build single- or three-channel images instead::
   make BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=1
   make BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=3
 
+The default clock source is the internal HSI64 oscillator. To build for a
+25 MHz external crystal instead::
+
+  make BOARD=stm32h725zgt6 STM32H725_USE_HSE=1
+
+``STM32H725_USE_HSE`` accepts exactly ``0`` or ``1`` and defaults to ``0``.
+It can be combined with any supported ``STM32H725_FDCAN_COUNT`` value.
+
 The two-channel build creates ``_build/stm32h725zgt6/supercan.elf``,
 ``supercan.hex``, and ``supercan.bin``. The single- and three-channel outputs
 are kept in ``_build/stm32h725zgt6-fdcan1`` and
@@ -39,10 +47,16 @@ the ``flash-jlink`` or ``flash-stlink`` make targets. ST's factory USB DFU
 bootloader is another option when the PCB boot configuration supports it;
 SuperDFU is not provided for this target.
 
+HSE builds use separate output directories. The one-, two-, and three-channel
+paths are ``_build/stm32h725zgt6-fdcan1-hse25``,
+``_build/stm32h725zgt6-hse25``, and
+``_build/stm32h725zgt6-fdcan3-hse25`` respectively.
+
 The channel count also controls the USB configuration: the image exposes one
 SuperCAN vendor interface per enabled FDCAN channel. The release script
-intentionally packages the default two-channel image; build the optional
-one- and three-channel images directly with the commands above.
+explicitly builds the default two-channel HSI image with
+``STM32H725_USE_HSE=0`` and packages it from ``_build/stm32h725zgt6``. Build
+the optional channel counts and HSE images directly with the commands above.
 
 Default signal map
 ==================
@@ -105,10 +119,12 @@ Clock and memory configuration
 
 The default board support package uses only internal oscillators:
 
-* HSI64 and PLL1 produce a 120 MHz system and AXI clock.
+* HSI64 and PLL1 produce a 120 MHz system and AXI clock:
+  ``64 MHz / 4 * 15 / 2 = 120 MHz``.
 * HSI48 supplies the 48 MHz USB kernel clock.
-* PLL2 Q supplies a 60 MHz FDCAN kernel clock. APB1 also runs at 60 MHz, which
-  stays inside the VOS2 limit and meets the FDCAN peripheral-clock rule.
+* PLL2 Q supplies a 60 MHz FDCAN kernel clock:
+  ``64 MHz / 4 * 15 / 4 = 60 MHz``. APB1 also runs at 60 MHz, which stays
+  inside the VOS2 limit and meets the FDCAN peripheral-clock rule.
 * TIM2 is a free-running 1 MHz SuperCAN timestamp counter.
 * The linker describes 1 MiB internal flash and the STM32H725's 560 KiB of
   normal SRAM. Initialized data, RAM-resident code, BSS, heap, and stack stay
@@ -119,6 +135,31 @@ The additional 192 KiB ``AXIRAM_EXT`` linker region is available in full only
 with the default 64 KiB ITCM / 320 KiB AXI SRAM option-byte split. The firmware
 does not place anything there automatically. Verify the option bytes before
 assigning custom sections to that region.
+
+**Optional 25 MHz HSE crystal.** ``STM32H725_USE_HSE=1`` selects crystal mode
+for a 25 MHz crystal or ceramic resonator connected between PH0-OSC_IN
+(LQFP144 pin 25) and PH1-OSC_OUT (LQFP144 pin 26). The BSP requests
+``RCC_HSE_ON``; it does not select HSE bypass mode and therefore is not the
+configuration for a driven external clock input.
+
+Choose the resonator and its load network from the resonator manufacturer's
+data and ST's `AN2867 oscillator design guide
+<https://www.st.com/resource/en/application_note/an2867-oscillator-design-guide-for-stm8afals-stm32-mcus-and-mpus-stmicroelectronics.pdf>`_.
+Account for PCB and pin stray capacitance, place the resonator network close
+to the MCU, and validate startup margin and drive level on the actual PCB.
+There is no universal load-capacitor value suitable for every crystal and
+layout.
+
+The HSE build uses a 5 MHz PLL input and legal 240 MHz wide-range VCOs. PLL1
+produces SYSCLK as ``25 MHz / 5 * 48 / 2 = 120 MHz``. PLL2 Q produces the
+FDCAN kernel clock as ``25 MHz / 5 * 48 / 4 = 60 MHz``. USB continues to use
+the independent HSI48 oscillator.
+
+Clock initialization occurs before the BSP starts a HAL tick source. If the
+crystal is absent or does not start, the HAL can remain in its HSE-ready
+polling loop and firmware does not reach USB or SuperCAN. A HAL-reported
+oscillator or PLL configuration error enters the BSP failure loop. There is no
+automatic fallback from an HSE build to the internal-clock configuration.
 
 FDCAN1, FDCAN2, and FDCAN3 share one fixed 10 KiB CAN message RAM. The one-
 and two-channel modes use 32 transmit FIFO and 32 transmit-event elements per
