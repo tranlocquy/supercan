@@ -3,10 +3,12 @@ STM32H725ZGT6 custom target
 
 This firmware target is a baseline for a custom board using the 1 MiB,
 LQFP144 STM32H725ZGT6. It is not a pin-compatible replacement for the
-NUCLEO-H7A3ZI-Q and it does not describe a complete PCB.
+NUCLEO-H7A3ZI-Q and it does not describe a complete PCB. The target exposes
+two independent SuperCAN channels: channel 0 uses FDCAN1 and channel 1 uses
+FDCAN2.
 
-**An external CAN-FD transceiver is required. Never connect PD0 or PD1
-directly to CANH or CANL.**
+**Each channel requires its own external CAN-FD transceiver. Never connect
+PB5, PB6, PB8, or PB9 directly to CANH or CANL.**
 
 Build target
 ============
@@ -31,15 +33,18 @@ for this target.
 Default signal map
 ==================
 
-The target deliberately keeps the logical GPIO choices of the original H7A3
-port where those signals also exist on STM32H725ZGT6:
+The target places both FDCAN pin pairs on GPIOB:
 
 +----------------------+----------+------------+-----------------------------------------------+
 | Function             | Signal   | LQFP144 pin| Configuration                                 |
 +======================+==========+============+===============================================+
-| FDCAN1 RX            | PD0      | 112        | AF9; connect from CAN-FD transceiver RXD      |
+| FDCAN1 RX            | PB8      | 136        | AF9; connect from CAN-FD transceiver RXD      |
 +----------------------+----------+------------+-----------------------------------------------+
-| FDCAN1 TX            | PD1      | 113        | AF9; connect to CAN-FD transceiver TXD        |
+| FDCAN1 TX            | PB9      | 137        | AF9; connect to CAN-FD transceiver TXD        |
++----------------------+----------+------------+-----------------------------------------------+
+| FDCAN2 RX            | PB5      | 132        | AF9; connect from CAN-FD transceiver RXD      |
++----------------------+----------+------------+-----------------------------------------------+
+| FDCAN2 TX            | PB6      | 133        | AF9; connect to CAN-FD transceiver TXD        |
 +----------------------+----------+------------+-----------------------------------------------+
 | USB device D-        | PA11     | 100        | USB1 OTG HS controller, internal FS PHY       |
 +----------------------+----------+------------+-----------------------------------------------+
@@ -57,18 +62,19 @@ port where those signals also exist on STM32H725ZGT6:
 +----------------------+----------+------------+-----------------------------------------------+
 | Debug/status LED     | PE1      | 139        | Push-pull output, active high                 |
 +----------------------+----------+------------+-----------------------------------------------+
-| CAN green LED        | PB0      | 49         | Push-pull output, active high                 |
+| CAN0 green LED       | PB0      | 49         | Push-pull output, active high                 |
 +----------------------+----------+------------+-----------------------------------------------+
-| CAN red LED          | PB14     | 74         | Push-pull output, active high                 |
+| CAN0 red LED         | PB14     | 74         | Push-pull output, active high                 |
 +----------------------+----------+------------+-----------------------------------------------+
 | User button          | PC13     | 9          | Input, no internal pull, active high          |
 +----------------------+----------+------------+-----------------------------------------------+
 
 The LED and button assignments are firmware defaults, not fixed features of
 the MCU. Change them in the target BSP if the custom PCB uses other pins. The
-firmware does not define a transceiver enable or standby GPIO, so the PCB must
-strap those inputs for normal operation or extend the target with a control
-pin.
+default mapping provides status LEDs for channel 0 only; channel 1 operates
+without dedicated status LEDs. The firmware does not define transceiver
+enable or standby GPIOs, so the PCB must strap those inputs for normal
+operation or extend the target with control pins.
 
 Clock and memory configuration
 ==============================
@@ -77,7 +83,8 @@ The default board support package uses only internal oscillators:
 
 * HSI64 and PLL1 produce a 120 MHz system and AXI clock.
 * HSI48 supplies the 48 MHz USB kernel clock.
-* PLL2 Q supplies an 80 MHz FDCAN kernel clock.
+* PLL2 Q supplies a 60 MHz FDCAN kernel clock. APB1 also runs at 60 MHz, which
+  stays inside the VOS2 limit and meets the FDCAN peripheral-clock rule.
 * TIM2 is a free-running 1 MHz SuperCAN timestamp counter.
 * The linker describes 1 MiB internal flash and the STM32H725's 560 KiB of
   normal SRAM. Initialized data, RAM-resident code, BSS, heap, and stack stay
@@ -88,6 +95,28 @@ The additional 192 KiB ``AXIRAM_EXT`` linker region is available in full only
 with the default 64 KiB ITCM / 320 KiB AXI SRAM option-byte split. The firmware
 does not place anything there automatically. Verify the option bytes before
 assigning custom sections to that region.
+
+FDCAN1, FDCAN2, and FDCAN3 share one fixed 10 KiB CAN message RAM. This target
+uses 32 receive FIFO elements, 32 transmit FIFO elements, and 32 transmit-event
+elements per enabled controller. With 64-byte CAN-FD payloads, each controller
+uses 4,864 bytes. The layout is::
+
+  0x0000 - 0x12ff  FDCAN1: 4,864 bytes
+  0x1300 - 0x25ff  FDCAN2: 4,864 bytes
+  0x2600 - 0x27ff  Unused:    512 bytes
+
+The regions are offsets from ``SRAMCAN_BASE`` and do not overlap. The hardware
+message RAM cannot be enlarged or relocated into normal SRAM. SuperCAN also
+maintains per-channel software queues in normal SRAM and drains the smaller
+hardware FIFOs from the interrupt handlers. FDCAN3 is not exposed because the
+current SuperCAN USB implementation supports at most two CAN interfaces.
+The target disables FDCAN edge filtering as required by STM32H725 erratum
+ES0491 section 2.22.1.
+
+Both CAN channels also share the USB full-speed link. Dual-channel operation
+does not guarantee lossless capture when both CAN-FD buses are simultaneously
+near their maximum configured load; validate aggregate throughput for the
+application and monitor the SuperCAN loss counters.
 
 Power and USB hardware requirements
 ===================================
@@ -130,5 +159,8 @@ References
 
 * `STM32H725/735 datasheet <https://www.st.com/resource/en/datasheet/stm32h725ae.pdf>`_
 * `AN5419: STM32H72x/73x hardware development <https://www.st.com/resource/en/application_note/an5419-getting-started-with-stm32h723733-stm32h725735-and-stm32h730-value-line-hardware-development-stmicroelectronics.pdf>`_
+* `AN5348: FDCAN peripheral on STM32 devices <https://www.st.com/resource/en/application_note/dm00625700-fdcan-peripheral-on-stm32-devices-stmicroelectronics.pdf>`_
 * `AN4879: USB hardware and PCB guidelines <https://www.st.com/resource/en/application_note/an4879-usb-hardware-and-pcb-guidelines-using-stm32-mcus-stmicroelectronics.pdf>`_
+* `ES0491: STM32H72xx/73xx device errata <https://www.st.com/resource/en/errata_sheet/es0491-stm32h72xx73xx-device-errata-stmicroelectronics.pdf>`_
+* `RM0468: STM32H723/733, STM32H725/735, and STM32H730 reference manual <https://www.st.com/resource/en/reference_manual/dm00603761.pdf>`_
 * `STM32H725ZG product page <https://www.st.com/en/microcontrollers-microprocessors/stm32h725zg.html>`_
