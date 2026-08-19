@@ -101,6 +101,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y dfu-util gcc-arm-none-eabi pixz python3
           git submodule update --init --depth 1 --recursive
 
+      - name: Build optional STM32H725 channel-count variants
+        run: |
+          make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+            -j"$(nproc)" BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=1
+          make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+            -j"$(nproc)" BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=3
+
       - name: Build
         id: build
         run: |
@@ -272,4 +279,3 @@ jobs:
           asset_path: ${{ steps.download.outputs.download-path }}/supercan.intoto.jsonl/supercan.intoto.jsonl
           asset_name:  supercan.intoto.jsonl
           asset_content_type: application/octet-stream
-
