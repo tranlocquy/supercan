@@ -147,3 +147,5 @@ ST hardware references:
 ## Revision note
 
 This is a static reverse-engineering report for the commits listed in the Scope section. Re-check the board submodule and initialization sources if the fork is later synchronized with upstream.
+
+The later `STM32H725xx` branch adds a custom-board port for STM32H725ZGT6. Its implementation assumptions, complete default pin map, power choices, and build instructions are documented in [doc/README.stm32h725zgt6.rst](doc/README.stm32h725zgt6.rst); they are not properties of the original NUCLEO-H7A3ZI-Q firmware analyzed above.
