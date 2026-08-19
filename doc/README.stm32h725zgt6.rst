@@ -8,7 +8,7 @@ one, two, or three independent SuperCAN channels. Channel 0 uses FDCAN1,
 optional channel 1 uses FDCAN2, and optional channel 2 uses FDCAN3.
 
 **Each channel requires its own external CAN-FD transceiver. Never connect
-PB5, PB6, PB8, PB9, PF6, or PF7 directly to CANH or CANL.**
+PB5, PB6, PB8, PB9, PG9, or PG10 directly to CANH or CANL.**
 
 Build target
 ============
@@ -47,7 +47,7 @@ one- and three-channel images directly with the commands above.
 Default signal map
 ==================
 
-The target places FDCAN1 and FDCAN2 on GPIOB and FDCAN3 on GPIOF:
+The target places FDCAN1 and FDCAN2 on GPIOB and FDCAN3 on GPIOG:
 
 +----------------------+----------+------------+-----------------------------------------------+
 | Function             | Signal   | LQFP144 pin| Configuration                                 |
@@ -60,9 +60,9 @@ The target places FDCAN1 and FDCAN2 on GPIOB and FDCAN3 on GPIOF:
 +----------------------+----------+------------+-----------------------------------------------+
 | FDCAN2 TX            | PB6      | 133        | AF9; connect to CAN-FD transceiver TXD        |
 +----------------------+----------+------------+-----------------------------------------------+
-| FDCAN3 RX            | PF6      | 20         | AF2; connect from CAN-FD transceiver RXD      |
+| FDCAN3 RX            | PG10     | 123        | AF2; connect from CAN-FD transceiver RXD      |
 +----------------------+----------+------------+-----------------------------------------------+
-| FDCAN3 TX            | PF7      | 21         | AF2; connect to CAN-FD transceiver TXD        |
+| FDCAN3 TX            | PG9      | 122        | AF2; connect to CAN-FD transceiver TXD        |
 +----------------------+----------+------------+-----------------------------------------------+
 | USB device D-        | PA11     | 100        | USB1 OTG HS controller, internal FS PHY       |
 +----------------------+----------+------------+-----------------------------------------------+
@@ -88,7 +88,7 @@ The target places FDCAN1 and FDCAN2 on GPIOB and FDCAN3 on GPIOF:
 +----------------------+----------+------------+-----------------------------------------------+
 
 PB5/PB6 are configured for FDCAN2 when ``STM32H725_FDCAN_COUNT`` is ``2`` or
-``3``. PF6/PF7 are configured for FDCAN3 only when the count is ``3``. Builds
+``3``. PG10/PG9 are configured for FDCAN3 only when the count is ``3``. Builds
 that do not select those channels leave their pins in the reset state for
 other board functions. If an unused CAN transceiver is populated, hold it in
 standby or provide a pull that keeps its TXD input recessive.
