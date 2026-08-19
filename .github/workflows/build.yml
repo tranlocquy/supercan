@@ -101,7 +101,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y dfu-util gcc-arm-none-eabi pixz python3
           git submodule update --init --depth 1 --recursive
 
-      - name: Build optional STM32H725 configurations
+      - name: Build optional STM32H725 and STM32H735 configurations
         run: |
           make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
             -j"$(nproc)" BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=1
@@ -110,6 +110,37 @@ jobs:
           make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
             -j"$(nproc)" BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=2 \
             STM32H725_USE_HSE=1
+          make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+            -j"$(nproc)" BOARD=stm32h735zgt6 STM32H735_FDCAN_COUNT=1
+          make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+            -j"$(nproc)" BOARD=stm32h735zgt6 STM32H735_FDCAN_COUNT=3
+          make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+            -j"$(nproc)" BOARD=stm32h735zgt6 STM32H735_FDCAN_COUNT=2 \
+            STM32H735_USE_HSE=1
+
+      - name: Reject invalid STM32H735 configurations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expect_failure() {
+            if "$@" > /tmp/stm32h735-invalid.log 2>&1; then
+              cat /tmp/stm32h735-invalid.log
+              echo "Unexpectedly accepted invalid STM32H735 configuration" >&2
+              return 1
+            fi
+          }
+
+          for value in 0 4 text ""; do
+            expect_failure make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+              --no-print-directory -n BOARD=stm32h735zgt6 \
+              "STM32H735_FDCAN_COUNT=$value" all
+          done
+          for value in -1 2 text ""; do
+            expect_failure make -C "$GITHUB_WORKSPACE/Boards/examples/device/supercan" \
+              --no-print-directory -n BOARD=stm32h735zgt6 \
+              "STM32H735_USE_HSE=$value" all
+          done
 
       - name: Build
         id: build

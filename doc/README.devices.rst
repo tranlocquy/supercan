@@ -22,6 +22,8 @@ Supported Devices
 +----------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | STM32H725ZGT6_, `README <README.stm32h725zgt6.rst>`_                                               | Custom hardware: SWD/J-Link, STM32CubeProgrammer_, or the factory ROM USB DFU bootloader                                                                                        |
 +----------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| STM32H735ZGT6_, `README <README.stm32h735zgt6.rst>`_                                               | Custom hardware: SWD/J-Link, STM32CubeProgrammer_, or the factory ROM USB DFU bootloader                                                                                        |
++----------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | STM32F3DISCOVERY_, `README <README.stm32f3discovery.rst>`_                                         | DfuSe, embedded debugger, STM32CubeProgrammer_                                                                                                                                  |
 +----------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | `Teensy 4.x <README.teensy_4x.rst>`_                                                               | `Teensy Loader`_                                                                                                                                                                |
@@ -36,6 +38,7 @@ Supported Devices
 .. _`Longan CANBED M4`: https://docs.longan-labs.cc/1030013/
 .. _NUCLEO-H7A3ZI-Q: https://www.st.com/en/evaluation-tools/nucleo-h7a3zi-q.html
 .. _STM32H725ZGT6: https://www.st.com/en/microcontrollers-microprocessors/stm32h725zg.html
+.. _STM32H735ZGT6: https://www.st.com/en/microcontrollers-microprocessors/stm32h735zg.html
 .. _STM32CubeProgrammer: https://www.st.com/en/development-tools/stm32cubeprog.html
 .. _STM32F3DISCOVERY: https://www.st.com/en/evaluation-tools/stm32f3discovery.html
 .. _`Teensy Loader`: https://www.pjrc.com/teensy/loader.html

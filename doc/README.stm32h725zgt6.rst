@@ -122,9 +122,10 @@ The default board support package uses only internal oscillators:
 * HSI64 and PLL1 produce a 120 MHz system and AXI clock:
   ``64 MHz / 4 * 15 / 2 = 120 MHz``.
 * HSI48 supplies the 48 MHz USB kernel clock.
-* PLL2 Q supplies a 60 MHz FDCAN kernel clock:
-  ``64 MHz / 4 * 15 / 4 = 60 MHz``. APB1 also runs at 60 MHz, which stays
-  inside the VOS2 limit and meets the FDCAN peripheral-clock rule.
+* PLL2 Q supplies an 80 MHz FDCAN kernel clock:
+  ``64 MHz / 4 * 15 / 3 = 80 MHz``. The shared CCU divides it by two to a
+  40 MHz FDCAN time-quanta clock, which is strictly below the 60 MHz APB1
+  clock as required by ST's FDCAN clock guidance.
 * TIM2 is a free-running 1 MHz SuperCAN timestamp counter.
 * The linker describes 1 MiB internal flash and the STM32H725's 560 KiB of
   normal SRAM. Initialized data, RAM-resident code, BSS, heap, and stack stay
@@ -151,9 +152,10 @@ There is no universal load-capacitor value suitable for every crystal and
 layout.
 
 The HSE build uses a 5 MHz PLL input and legal 240 MHz wide-range VCOs. PLL1
-produces SYSCLK as ``25 MHz / 5 * 48 / 2 = 120 MHz``. PLL2 Q produces the
-FDCAN kernel clock as ``25 MHz / 5 * 48 / 4 = 60 MHz``. USB continues to use
-the independent HSI48 oscillator.
+produces SYSCLK as ``25 MHz / 5 * 48 / 2 = 120 MHz``. PLL2 Q produces an
+80 MHz FDCAN kernel clock as ``25 MHz / 5 * 48 / 3 = 80 MHz``; the CCU
+divider produces the 40 MHz time-quanta clock. USB continues to use the
+independent HSI48 oscillator.
 
 Clock initialization occurs before the BSP starts a HAL tick source. If the
 crystal is absent or does not start, the HAL can remain in its HSE-ready
@@ -242,5 +244,6 @@ References
 * `AN5348: FDCAN peripheral on STM32 devices <https://www.st.com/resource/en/application_note/dm00625700-fdcan-peripheral-on-stm32-devices-stmicroelectronics.pdf>`_
 * `AN4879: USB hardware and PCB guidelines <https://www.st.com/resource/en/application_note/an4879-usb-hardware-and-pcb-guidelines-using-stm32-mcus-stmicroelectronics.pdf>`_
 * `ES0491: STM32H72xx/73xx device errata <https://www.st.com/resource/en/errata_sheet/es0491-stm32h72xx73xx-device-errata-stmicroelectronics.pdf>`_
+* `ST FDCAN clock guidance <https://community.st.com/t5/stm32-mcus/faq-fixing-stm32-fdcan-communication-disruptions-apb-bus-kernel/ta-p/730298>`_
 * `RM0468: STM32H723/733, STM32H725/735, and STM32H730 reference manual <https://www.st.com/resource/en/reference_manual/dm00603761.pdf>`_
 * `STM32H725ZG product page <https://www.st.com/en/microcontrollers-microprocessors/stm32h725zg.html>`_
