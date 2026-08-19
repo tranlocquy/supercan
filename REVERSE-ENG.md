@@ -150,4 +150,4 @@ This is a static reverse-engineering report for the commits listed in the Scope 
 
 The later `STM32H725xx` branch adds a custom-board port for STM32H725ZGT6. Its implementation assumptions, complete default pin map, power choices, and build instructions are documented in [doc/README.stm32h725zgt6.rst](doc/README.stm32h725zgt6.rst); they are not properties of the original NUCLEO-H7A3ZI-Q firmware analyzed above.
 
-The `2FDCAN` branch extends that custom target to two independent CAN-FD channels. Channel 0 uses FDCAN1 on PB8/PB9 and channel 1 uses FDCAN2 on PB5/PB6; both controllers share the STM32H725's fixed 10 KiB CAN message RAM.
+The `2FDCAN` branch extends that custom target with a `STM32H725_FDCAN_COUNT=1|2` build-time choice. Channel 0 uses FDCAN1 on PB8/PB9 and optional channel 1 uses FDCAN2 on PB5/PB6; both controllers share the STM32H725's fixed 10 KiB CAN message RAM.

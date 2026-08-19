@@ -4,8 +4,8 @@ STM32H725ZGT6 custom target
 This firmware target is a baseline for a custom board using the 1 MiB,
 LQFP144 STM32H725ZGT6. It is not a pin-compatible replacement for the
 NUCLEO-H7A3ZI-Q and it does not describe a complete PCB. The target exposes
-two independent SuperCAN channels: channel 0 uses FDCAN1 and channel 1 uses
-FDCAN2.
+one or two independent SuperCAN channels. Channel 0 uses FDCAN1 and optional
+channel 1 uses FDCAN2.
 
 **Each channel requires its own external CAN-FD transceiver. Never connect
 PB5, PB6, PB8, or PB9 directly to CANH or CANL.**
@@ -21,14 +21,25 @@ Use ``BOARD=stm32h725zgt6``. From the SuperCAN repository root::
     hw/mcu/st/cmsis_device_h7 \
     hw/mcu/st/stm32h7xx_hal_driver
   cd Boards/examples/device/supercan
-  make BOARD=stm32h725zgt6
+  make BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=2
 
-The build creates ``_build/stm32h725zgt6/supercan.elf``, ``supercan.hex``,
-and ``supercan.bin``. The image is linked for the start of internal flash at
-``0x08000000``. The target can be flashed over SWD with the ``flash-jlink`` or
-``flash-stlink`` make targets. ST's factory USB DFU bootloader is another
+``STM32H725_FDCAN_COUNT`` accepts only ``1`` or ``2`` and defaults to ``2``
+when omitted. To build a single-channel image instead::
+
+  make BOARD=stm32h725zgt6 STM32H725_FDCAN_COUNT=1
+
+The two-channel build creates ``_build/stm32h725zgt6/supercan.elf``,
+``supercan.hex``, and ``supercan.bin``. The single-channel output is kept in
+``_build/stm32h725zgt6-fdcan1`` so changing the flag cannot reuse objects from
+the other configuration. The image is linked for the start of internal flash
+at ``0x08000000``. The target can be flashed over SWD with the ``flash-jlink``
+or ``flash-stlink`` make targets. ST's factory USB DFU bootloader is another
 option when the PCB boot configuration supports it; SuperDFU is not provided
 for this target.
+
+The channel count also controls the USB configuration: the single-channel
+image exposes one SuperCAN vendor interface, while the default image exposes
+two.
 
 Default signal map
 ==================
@@ -69,6 +80,11 @@ The target places both FDCAN pin pairs on GPIOB:
 | User button          | PC13     | 9          | Input, no internal pull, active high          |
 +----------------------+----------+------------+-----------------------------------------------+
 
+PB5/PB6 are configured for FDCAN2 only when ``STM32H725_FDCAN_COUNT=2``.
+The single-channel build leaves them in their reset state for other board
+functions. If a second CAN transceiver is populated in that configuration,
+hold it in standby or provide a pull that keeps its TXD input recessive.
+
 The LED and button assignments are firmware defaults, not fixed features of
 the MCU. Change them in the target BSP if the custom PCB uses other pins. The
 default mapping provides status LEDs for channel 0 only; channel 1 operates
@@ -96,10 +112,16 @@ with the default 64 KiB ITCM / 320 KiB AXI SRAM option-byte split. The firmware
 does not place anything there automatically. Verify the option bytes before
 assigning custom sections to that region.
 
-FDCAN1, FDCAN2, and FDCAN3 share one fixed 10 KiB CAN message RAM. This target
-uses 32 receive FIFO elements, 32 transmit FIFO elements, and 32 transmit-event
-elements per enabled controller. With 64-byte CAN-FD payloads, each controller
-uses 4,864 bytes. The layout is::
+FDCAN1, FDCAN2, and FDCAN3 share one fixed 10 KiB CAN message RAM. Both build
+modes use 32 transmit FIFO and 32 transmit-event elements per enabled
+controller. The single-channel mode restores the hardware maximum of 64
+receive elements and uses this layout::
+
+  0x0000 - 0x1bff  FDCAN1: 7,168 bytes
+  0x1c00 - 0x27ff  Unused:  3,072 bytes
+
+The two-channel mode uses 32 receive elements per controller and partitions
+the message RAM as follows::
 
   0x0000 - 0x12ff  FDCAN1: 4,864 bytes
   0x1300 - 0x25ff  FDCAN2: 4,864 bytes
@@ -113,10 +135,11 @@ current SuperCAN USB implementation supports at most two CAN interfaces.
 The target disables FDCAN edge filtering as required by STM32H725 erratum
 ES0491 section 2.22.1.
 
-Both CAN channels also share the USB full-speed link. Dual-channel operation
-does not guarantee lossless capture when both CAN-FD buses are simultaneously
-near their maximum configured load; validate aggregate throughput for the
-application and monitor the SuperCAN loss counters.
+In the two-channel image, both CAN channels share the USB full-speed link.
+Dual-channel operation does not guarantee lossless capture when both CAN-FD
+buses are simultaneously near their maximum configured load; validate
+aggregate throughput for the application and monitor the SuperCAN loss
+counters.
 
 Power and USB hardware requirements
 ===================================
