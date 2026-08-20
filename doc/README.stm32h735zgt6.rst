@@ -55,23 +55,32 @@ Updating an existing clone
 
 From a clean SuperCAN checkout, the root-level updater fast-forwards the
 ``debug`` branch and checks out the pinned ``Boards`` revision plus the four
-nested dependencies required by this STM32H7 build::
+nested dependencies required by this STM32H7 build. It then forces a fresh
+default STM32H735ZGT6 build with two FDCAN channels and the internal HSI::
 
   ./update-supercan.sh
 
 To update a checkout stored elsewhere or select another branch/remote, use
 ``--repo``, ``--branch``, and ``--remote``. The updater refuses to change the
 current branch unless ``--switch`` is explicitly supplied. Run
-``./update-supercan.sh --help`` for the complete interface.
+``./update-supercan.sh --help`` for the complete interface. Use ``--no-build``
+when only the pinned source checkout should be updated. The automatic build
+requires ``make``, ``realpath``, and the Arm GNU ``gcc``, ``objcopy``, and
+``size`` tools in ``PATH``; set the ``CROSS_COMPILE`` environment variable
+when the toolchain prefix is elsewhere.
+The resulting ``supercan.elf``, ``supercan.hex``, and ``supercan.bin`` files
+are written below ``Boards/examples/device/supercan/_build/stm32h735zgt6``.
+The inherited TinyUSB makefiles require a checkout and toolchain path without
+whitespace for builds; ``--no-build`` remains available for other paths.
 
 The script refuses local tracked or untracked changes and in-progress Git
 operations. Ignored build outputs may remain, but the updater aborts if a
 target revision would overwrite one of them. It checks out ``Boards`` and its
 build dependencies at the exact commits pinned by their parent repositories,
 so these submodule worktrees are normally left detached. It never resets,
-stashes, builds, flashes, or force-pushes. A network interruption can leave
-dependencies only partially initialized; after correcting the connection,
-rerun the same command.
+stashes, flashes, or force-pushes. A network interruption or build failure can
+leave a completed source update without a new firmware image; after correcting
+the cause, rerun the same command.
 
 Signal map
 ==========
@@ -164,11 +173,12 @@ recessive. The firmware does not currently define transceiver-enable GPIOs.
 The H735 target drives PE2/PE3/PE4 as active-low, open-drain LEDs. Wire each
 LED from the positive supply through its current-limiting resistor to the MCU
 pin: driving the pin low turns the LED on, while releasing it high turns the
-LED off. Firmware turns the blue LED on after board initialization returns to
-``main()`` and holds it on as a steady main-reached indicator; USB lifecycle
-and CAN traffic events do not override it. It is not a heartbeat and therefore
-does not prove that the scheduler remains healthy. The green and red LEDs
-report CAN0 status. FDCAN2 and FDCAN3 do not have dedicated status LEDs.
+LED off. Firmware turns the blue LED on as the first board-specific action in
+``main()``, before board, clock, and FDCAN initialization, and holds it on as a
+steady main-reached indicator; USB lifecycle and CAN traffic events do not
+override it. It is not a heartbeat and therefore does not prove that later
+initialization or the scheduler remains healthy. The green and red LEDs report
+CAN0 status. FDCAN2 and FDCAN3 do not have dedicated status LEDs.
 Because PE2 stays on during USB suspend, include its LED current in the board's
 USB suspend-power budget.
 PE2/PE3/PE4 can alternatively carry TRACECLK/TRACED0/TRACED1, so parallel

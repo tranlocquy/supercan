@@ -8,18 +8,21 @@ usage() {
 	cat <<EOF
 Usage: ${SCRIPT_NAME} [options]
 
-Safely update an existing SuperCAN clone and the STM32H7 firmware submodules.
+Safely update an existing SuperCAN clone, synchronize the STM32H7 firmware
+submodules, and build the default STM32H735ZGT6 image.
 
 Options:
   --repo PATH      SuperCAN checkout to update (default: script directory)
   --branch NAME    Branch to update (default: debug)
   --remote NAME    Git remote to fetch (default: origin)
   --switch         Allow switching to or creating the selected branch
+  --no-build       Update sources without building firmware
   -h, --help       Show this help
 
 The updater refuses a dirty worktree, fetches and fast-forwards only, and
 checks out Boards plus the four nested dependencies required by the STM32H7
-firmware build. It never resets, stashes, builds, flashes, or force-pushes.
+firmware build. By default it then performs a fresh dual-FDCAN, internal-HSI
+STM32H735ZGT6 build. It never resets, stashes, flashes, or force-pushes.
 EOF
 }
 
@@ -32,6 +35,42 @@ require_value() {
 	local option="$1"
 	local count="$2"
 	(( count >= 2 )) || die "${option} requires a value"
+}
+
+processor_count() {
+	local count=""
+
+	if command -v nproc >/dev/null 2>&1; then
+		count="$(nproc 2>/dev/null || true)"
+	fi
+	if [[ ! "$count" =~ ^[1-9][0-9]*$ ]] \
+		&& command -v sysctl >/dev/null 2>&1; then
+		count="$(sysctl -n hw.logicalcpu 2>/dev/null || true)"
+	fi
+	if [[ ! "$count" =~ ^[1-9][0-9]*$ ]] \
+		&& command -v sysctl >/dev/null 2>&1; then
+		count="$(sysctl -n hw.ncpu 2>/dev/null || true)"
+	fi
+	if [[ ! "$count" =~ ^[1-9][0-9]*$ ]] \
+		&& command -v getconf >/dev/null 2>&1; then
+		count="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+	fi
+
+	[[ "$count" =~ ^[1-9][0-9]*$ ]] || count=1
+	printf '%s\n' "$count"
+}
+
+verify_clean_worktree() {
+	local context="$1"
+	local status
+
+	status="$(git -C "$repo_dir" status --porcelain=v1 \
+		--untracked-files=normal --ignore-submodules=none)"
+	[[ -z "$status" ]] || {
+		printf 'Unexpected worktree changes after %s:\n%s\n' \
+			"$context" "$status" >&2
+		die "$context finished with a dirty worktree"
+	}
 }
 
 check_git_operation() {
@@ -128,6 +167,7 @@ repo_dir=""
 branch="debug"
 remote="origin"
 allow_switch=0
+build_firmware=1
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -148,6 +188,10 @@ while (( $# > 0 )); do
 			;;
 		--switch)
 			allow_switch=1
+			shift
+			;;
+		--no-build)
+			build_firmware=0
 			shift
 			;;
 		-h|--help)
@@ -174,6 +218,21 @@ git -C "$repo_dir" ls-files --error-unmatch .gitmodules src/supercan.h \
 	>/dev/null 2>&1 || die "not a SuperCAN checkout: $repo_dir"
 
 readonly boards_dir="$repo_dir/Boards"
+readonly supercan_build_dir="$boards_dir/examples/device/supercan"
+toolchain_prefix="${CROSS_COMPILE-arm-none-eabi-}"
+if (( build_firmware )); then
+	[[ "$repo_dir" != *[[:space:]]* ]] \
+		|| die "firmware builds require a checkout path without whitespace; use --no-build"
+	[[ "$toolchain_prefix" != *[[:space:]]* ]] \
+		|| die "CROSS_COMPILE must not contain whitespace"
+	command -v make >/dev/null 2>&1 || die "make is not installed"
+	command -v realpath >/dev/null 2>&1 || die "realpath is not installed"
+	for tool in gcc objcopy size; do
+		command -v "${toolchain_prefix}${tool}" >/dev/null 2>&1 \
+			|| die "${toolchain_prefix}${tool} is not installed; set CROSS_COMPILE or use --no-build"
+	done
+fi
+
 readonly h7_submodules=(
 	lib/CMSIS_5
 	lib/FreeRTOS-Kernel
@@ -282,12 +341,28 @@ for submodule in "${h7_submodules[@]}"; do
 		|| die "$submodule is not at the revision pinned by Boards"
 done
 
-final_status="$(git -C "$repo_dir" status --porcelain=v1 \
-	--untracked-files=normal --ignore-submodules=none)"
-[[ -z "$final_status" ]] || {
-	printf 'Unexpected worktree changes after update:\n%s\n' "$final_status" >&2
-	die "update finished with a dirty worktree"
-}
+verify_clean_worktree "source update"
+
+if (( build_firmware )); then
+	build_jobs="$(processor_count)"
+	printf '\nBuilding the default STM32H735ZGT6 firmware (%s jobs)...\n' \
+		"$build_jobs"
+	if ! MAKEFLAGS= MFLAGS= GNUMAKEFLAGS= MAKEFILES= \
+		make -C "$supercan_build_dir" -B -j"$build_jobs" \
+		BOARD=stm32h735zgt6 \
+		STM32H735_FDCAN_COUNT=2 \
+		STM32H735_USE_HSE=0 \
+		"CROSS_COMPILE=$toolchain_prefix" \
+		all; then
+		verify_clean_worktree "failed firmware build"
+		die "source update completed, but the STM32H735ZGT6 firmware build failed"
+	fi
+	for artifact in elf hex bin; do
+		[[ -s "$supercan_build_dir/_build/stm32h735zgt6/supercan.$artifact" ]] \
+			|| die "build did not produce a nonempty supercan.$artifact"
+	done
+	verify_clean_worktree "firmware build"
+fi
 
 root_commit="$(git -C "$repo_dir" rev-parse --short=12 HEAD)"
 boards_commit="$(git -C "$boards_dir" rev-parse --short=12 HEAD)"
@@ -295,6 +370,9 @@ boards_commit="$(git -C "$boards_dir" rev-parse --short=12 HEAD)"
 printf '\nUpdate complete.\n'
 printf '  SuperCAN: %s (%s)\n' "$root_commit" "$branch"
 printf '  Boards:   %s (detached, pinned by SuperCAN)\n' "$boards_commit"
-printf '\nBuild the default H735 firmware with:\n'
-printf '  make -C %q BOARD=stm32h735zgt6\n' \
-	"$boards_dir/examples/device/supercan"
+if (( build_firmware )); then
+	printf '  Firmware: %s\n' \
+		"$supercan_build_dir/_build/stm32h735zgt6/supercan.bin"
+else
+	printf '\nFirmware build skipped (--no-build).\n'
+fi
